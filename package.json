@@ -1,0 +1,14 @@
+{
+  "name": "whatsapp-telegram-bot",
+  "version": "1.0.0",
+  "description": "بوت واتساب مرتبط بتيليجرام لتوليد Pair Code",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "@whiskeysockets/baileys": "^5.0.0",
+    "node-telegram-bot-api": "^0.61.0",
+    "qrcode-terminal": "^0.12.0"
+  }
+}
