@@ -4,58 +4,61 @@ const path = require('path');
 const qrcode = require('qrcode-terminal');
 const TelegramBot = require('node-telegram-bot-api');
 
-// -------- تيليجرام --------
 const TELEGRAM_TOKEN = "8258339661:AAHSIeEzkDZ5xMEXdnwPfk9xGfchyBwAJ7Q";
 const ADMIN_ID = 7210057243;
 const bot = new TelegramBot(TELEGRAM_TOKEN, { polling: true });
 
-// -------- جلسة واتساب --------
 const SESSION_DIR = path.join(__dirname, 'sessions');
 if (!fs.existsSync(SESSION_DIR)) fs.mkdirSync(SESSION_DIR);
 
 let sock;
 
-// -------- بدء الاتصال --------
 async function startSock() {
-    const { state, saveCreds } = await useMultiFileAuthState(SESSION_DIR);
+    try {
+        const { state, saveCreds } = await useMultiFileAuthState(SESSION_DIR);
 
-    sock = makeWASocket({
-        auth: state,
-        printQRInTerminal: false
-    });
+        sock = makeWASocket({
+            auth: state,
+            printQRInTerminal: false
+        });
 
-    sock.ev.on('creds.update', saveCreds);
+        sock.ev.on('creds.update', saveCreds);
 
-    sock.ev.on('connection.update', (update) => {
-        const { connection, qr, lastDisconnect } = update;
-        if (qr) {
-            console.log("QR code generated!");
-            qrcode.generate(qr, { small: true });
-        }
-        if (connection === 'close') {
-            const reason = lastDisconnect.error?.output?.statusCode;
-            if (reason !== DisconnectReason.loggedOut) {
-                startSock();
+        sock.ev.on('connection.update', (update) => {
+            const { connection, qr, lastDisconnect } = update;
+            if (qr) {
+                console.log("QR code generated!");
+                qrcode.generate(qr, { small: true });
             }
-        } else if (connection === 'open') {
-            console.log("WhatsApp متصل!");
-        }
-    });
+            if (connection === 'close') {
+                const reason = lastDisconnect.error?.output?.statusCode;
+                console.log("⚠️ تم فصل الاتصال، السبب:", reason);
+                if (reason !== DisconnectReason.loggedOut) {
+                    setTimeout(startSock, 5000); // إعادة المحاولة بعد 5 ثواني
+                }
+            } else if (connection === 'open') {
+                console.log("✅ واتساب متصل!");
+            }
+        });
 
-    // استقبال الرسائل الواردة على واتساب
-    sock.ev.on('messages.upsert', async (m) => {
-        const msg = m.messages[0];
-        if (!msg.message) return;
-        const sender = msg.key.remoteJid;
-        const text = msg.message.conversation || msg.message.extendedTextMessage?.text;
+        sock.ev.on('messages.upsert', async (m) => {
+            const msg = m.messages[0];
+            if (!msg.message) return;
+            const sender = msg.key.remoteJid;
+            const text = msg.message.conversation || msg.message.extendedTextMessage?.text;
 
-        if (text === "!help") {
-            await sock.sendMessage(sender, { text: generateCommandList() });
-        }
-    });
+            if (text === "!help") {
+                await sock.sendMessage(sender, { text: generateCommandList() });
+            }
+        });
+
+    } catch (e) {
+        console.log("⚠️ خطأ أثناء الاتصال:", e.message);
+        setTimeout(startSock, 5000); // إعادة المحاولة بعد 5 ثواني
+    }
 }
 
-// -------- قائمة الأوامر النصية الفخمة --------
+// -------- قائمة الأوامر --------
 function generateCommandList() {
     return `
 ┏━━━💎 قائمة الأوامر 💎━━━┓
@@ -71,7 +74,7 @@ function generateCommandList() {
 `;
 }
 
-// -------- أوامر تيليجرام --------
+// -------- تيليجرام --------
 bot.onText(/\/pair (.+)/, async (msg, match) => {
     if (msg.from.id !== ADMIN_ID) return;
     const number = match[1];
@@ -80,8 +83,8 @@ bot.onText(/\/pair (.+)/, async (msg, match) => {
         await startSock();
         bot.sendMessage(msg.chat.id, "✅ تم توليد الرمز! افتح واتساب لمسح رمز QR.");
     } catch (e) {
-        console.log(e);
         bot.sendMessage(msg.chat.id, "❌ حدث خطأ أثناء توليد رمز الاقتران.");
+        console.log(e);
     }
 });
 
@@ -107,4 +110,4 @@ bot.onText(/\/help/, (msg) => {
 
 // -------- بدء البوت --------
 startSock();
-console.log("🤖 بوت واتساب و تيليجرام جاهز!");
+console.log("🤖 بوت واتساب و تيليجرام جاهز على Render!");
