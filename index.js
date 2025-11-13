@@ -1,18 +1,31 @@
+// ==============================
+//  المكتبات المطلوبة
+// ==============================
 const { default: makeWASocket, useMultiFileAuthState, DisconnectReason } = require('@whiskeysockets/baileys');
 const fs = require('fs');
 const path = require('path');
 const qrcode = require('qrcode-terminal');
 const TelegramBot = require('node-telegram-bot-api');
+const axios = require('axios'); // لاستخدام API إذا لزم
 
+// ==============================
+//  إعدادات بوت تيليجرام
+// ==============================
 const TELEGRAM_TOKEN = "8258339661:AAHSIeEzkDZ5xMEXdnwPfk9xGfchyBwAJ7Q";
 const ADMIN_ID = 7210057243;
 const bot = new TelegramBot(TELEGRAM_TOKEN, { polling: true });
 
+// ==============================
+//  مجلد الجلسات
+// ==============================
 const SESSION_DIR = path.join(__dirname, 'sessions');
 if (!fs.existsSync(SESSION_DIR)) fs.mkdirSync(SESSION_DIR);
 
 let sock;
 
+// ==============================
+//  بدء اتصال واتساب
+// ==============================
 async function startSock() {
     try {
         const { state, saveCreds } = await useMultiFileAuthState(SESSION_DIR);
@@ -22,14 +35,18 @@ async function startSock() {
             printQRInTerminal: false
         });
 
+        // حفظ بيانات الجلسة عند أي تحديث
         sock.ev.on('creds.update', saveCreds);
 
+        // متابعة حالة الاتصال
         sock.ev.on('connection.update', (update) => {
             const { connection, qr, lastDisconnect } = update;
+
             if (qr) {
-                console.log("QR code generated!");
+                console.log("🔹 QR code generated! امسح الرمز في واتساب");
                 qrcode.generate(qr, { small: true });
             }
+
             if (connection === 'close') {
                 const reason = lastDisconnect.error?.output?.statusCode;
                 console.log("⚠️ تم فصل الاتصال، السبب:", reason);
@@ -41,12 +58,14 @@ async function startSock() {
             }
         });
 
+        // متابعة الرسائل الواردة
         sock.ev.on('messages.upsert', async (m) => {
             const msg = m.messages[0];
             if (!msg.message) return;
             const sender = msg.key.remoteJid;
             const text = msg.message.conversation || msg.message.extendedTextMessage?.text;
 
+            // مثال: أوامر داخل واتساب
             if (text === "!help") {
                 await sock.sendMessage(sender, { text: generateCommandList() });
             }
@@ -58,7 +77,9 @@ async function startSock() {
     }
 }
 
-// -------- قائمة الأوامر --------
+// ==============================
+//  قائمة الأوامر (منسقة فخمة)
+// ==============================
 function generateCommandList() {
     return `
 ┏━━━💎 قائمة الأوامر 💎━━━┓
@@ -74,7 +95,11 @@ function generateCommandList() {
 `;
 }
 
-// -------- تيليجرام --------
+// ==============================
+//  أوامر تيليجرام
+// ==============================
+
+// توليد رمز الاقتران
 bot.onText(/\/pair (.+)/, async (msg, match) => {
     if (msg.from.id !== ADMIN_ID) return;
     const number = match[1];
@@ -88,12 +113,14 @@ bot.onText(/\/pair (.+)/, async (msg, match) => {
     }
 });
 
+// حالة الاتصال
 bot.onText(/\/status/, (msg) => {
     if (msg.from.id !== ADMIN_ID) return;
     const status = sock?.user ? "✅ واتساب متصل" : "❌ واتساب غير متصل";
     bot.sendMessage(msg.chat.id, status);
 });
 
+// اختبار سرعة الاستجابة
 bot.onText(/\/ping/, (msg) => {
     if (msg.from.id !== ADMIN_ID) return;
     const start = Date.now();
@@ -103,11 +130,14 @@ bot.onText(/\/ping/, (msg) => {
     });
 });
 
+// عرض قائمة الأوامر
 bot.onText(/\/help/, (msg) => {
     if (msg.from.id !== ADMIN_ID) return;
     bot.sendMessage(msg.chat.id, generateCommandList());
 });
 
-// -------- بدء البوت --------
+// ==============================
+//  بدء البوت
+// ==============================
 startSock();
 console.log("🤖 بوت واتساب و تيليجرام جاهز على Render!");
